@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Web-Based Restaurant Management System</title>
+<style>
+  /* ---------- Basic page style ---------- */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, sans-serif; background: #f5f1ea; color: #2b2b2b; }
+  header { background: #b23a2e; color: #fff; text-align: center; padding: 18px 10px; }
+  header h1 { font-size: 26px; }
+  header p { font-size: 14px; margin-top: 4px; }
+  .container { display: flex; flex-wrap: wrap; gap: 20px; max-width: 1100px; margin: 20px auto; padding: 0 12px; }
+  .menu { flex: 2 1 480px; }
+  .cart  { flex: 1 1 300px; background: #fff; border-radius: 8px; padding: 16px; align-self: flex-start; box-shadow: 0 1px 4px rgba(0,0,0,.15); }
+  h2 { margin-bottom: 12px; font-size: 20px; color: #b23a2e; }
+
+  /* ---------- Menu cards ---------- */
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; }
+  .card { background: #fff; border-radius: 8px; padding: 14px; text-align: center; box-shadow: 0 1px 4px rgba(0,0,0,.15); }
+  .card .icon { font-size: 40px; }
+  .card h3 { font-size: 16px; margin: 6px 0 2px; }
+  .card .cat { font-size: 12px; color: #777; }
+  .card .price { font-weight: bold; margin: 6px 0; }
+  button { background: #b23a2e; color: #fff; border: 0; padding: 8px 12px; border-radius: 5px; cursor: pointer; font-size: 14px; }
+  button:hover { background: #8f2d23; }
+  button.small { padding: 2px 8px; font-size: 13px; }
+  button.grey { background: #666; }
+
+  /* ---------- Cart ---------- */
+  table { width: 100%; border-collapse: collapse; font-size: 14px; margin-bottom: 10px; }
+  th, td { padding: 6px 4px; border-bottom: 1px solid #ddd; text-align: left; }
+  td.num, th.num { text-align: right; }
+  .empty { color: #888; font-size: 14px; margin: 8px 0; }
+  input[type=text] { width: 100%; padding: 8px; margin: 6px 0 12px; border: 1px solid #bbb; border-radius: 5px; font-size: 14px; }
+  .totals p { display: flex; justify-content: space-between; margin: 3px 0; font-size: 14px; }
+  .totals .grand { font-weight: bold; font-size: 17px; border-top: 2px solid #333; padding-top: 6px; margin-top: 6px; }
+  .error { color: #c00; font-size: 13px; min-height: 16px; margin-bottom: 6px; }
+  .actions { display: flex; gap: 8px; margin-top: 8px; }
+  .actions button { flex: 1; }
+
+  /* ---------- Confirmation + receipt ---------- */
+  #confirmation { display: none; max-width: 480px; margin: 20px auto; background: #fff; padding: 22px; border-radius: 8px; box-shadow: 0 1px 6px rgba(0,0,0,.2); }
+  .ok { background: #e6f4ea; color: #1e6b34; padding: 10px; border-radius: 5px; margin-bottom: 14px; text-align: center; font-weight: bold; }
+  .receipt-head { text-align: center; margin-bottom: 10px; }
+  .receipt-meta { font-size: 14px; margin-bottom: 10px; }
+  .thanks { text-align: center; margin-top: 12px; font-size: 14px; }
+
+  /* ---------- Print: only the receipt is printed ---------- */
+  @media print {
+    body { background: #fff; }
+    header, .container, .no-print { display: none !important; }
+    #confirmation { display: block !important; box-shadow: none; margin: 0 auto; }
+    .ok { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🍽️ Spice Garden Restaurant</h1>
+  <p>Web-Based Restaurant Management System</p>
+</header>
+
+<div class="container" id="mainPage">
+  <!-- Food menu -->
+  <section class="menu">
+    <h2>Food Menu</h2>
+    <div class="grid" id="menuGrid"></div>
+  </section>
+
+  <!-- Cart and billing -->
+  <aside class="cart">
+    <h2>Your Cart</h2>
+    <div id="cartBox"></div>
+
+    <label for="custName"><b>Customer Name</b></label>
+    <input type="text" id="custName" placeholder="Enter your name" oninput="document.getElementById('errorMsg').textContent=''">
+
+    <div class="totals">
+      <p><span>Subtotal</span><span id="subtotal">₹0.00</span></p>
+      <p><span>GST (5%)</span><span id="gst">₹0.00</span></p>
+      <p class="grand"><span>Total Bill</span><span id="total">₹0.00</span></p>
+    </div>
+    <div class="error" id="errorMsg"></div>
+    <div class="actions">
+      <button class="grey" onclick="clearCart()">Clear Cart</button>
+      <button onclick="placeOrder()">Place Order</button>
+    </div>
+  </aside>
+</div>
+
+<!-- Order confirmation and digital receipt -->
+<section id="confirmation">
+  <div class="ok">✅ Order placed successfully!</div>
+  <div class="receipt-head">
+    <h2>Spice Garden Restaurant</h2>
+    <p>Digital Receipt</p>
+  </div>
+  <div class="receipt-meta" id="receiptMeta"></div>
+  <table>
+    <thead><tr><th>Item</th><th class="num">Qty</th><th class="num">Price</th><th class="num">Amount</th></tr></thead>
+    <tbody id="receiptRows"></tbody>
+  </table>
+  <div class="totals" id="receiptTotals"></div>
+  <p class="thanks">Thank you for dining with us!</p>
+  <div class="actions no-print">
+    <button onclick="window.print()">🖨️ Print Bill</button>
+    <button class="grey" onclick="newOrder()">New Order</button>
+  </div>
+</section>
+
+<script>
+  // ---------- 1. Menu data (an array of objects) ----------
+  const menu = [
+    { id: 1, name: "Paneer Butter Masala", cat: "Main Course", price: 220, icon: "🍛" },
+    { id: 2, name: "Veg Biryani",          cat: "Main Course", price: 180, icon: "🍚" },
+    { id: 3, name: "Butter Naan",          cat: "Breads",      price: 40,  icon: "🫓" },
+    { id: 4, name: "Veg Burger",           cat: "Snacks",      price: 90,  icon: "🍔" },
+    { id: 5, name: "Margherita Pizza",     cat: "Snacks",      price: 250, icon: "🍕" },
+    { id: 6, name: "Masala Dosa",          cat: "South Indian",price: 100, icon: "🥞" },
+    { id: 7, name: "Cold Coffee",          cat: "Beverages",   price: 80,  icon: "🥤" },
+    { id: 8, name: "Gulab Jamun",          cat: "Dessert",     price: 60,  icon: "🍮" }
+  ];
+
+  let cart = [];            // items added by the customer
+  const GST_RATE = 0.05;    // 5% tax
+
+  const money = n => "₹" + n.toFixed(2);
+
+  // ---------- 2. Show the menu ----------
+  function showMenu() {
+    const grid = document.getElementById("menuGrid");
+    grid.innerHTML = "";
+    menu.forEach(item => {
+      grid.innerHTML += `
+        <div class="card">
+          <div class="icon">${item.icon}</div>
+          <h3>${item.name}</h3>
+          <div class="cat">${item.cat}</div>
+          <div class="price">${money(item.price)}</div>
+          <button onclick="addToCart(${item.id})">Add to Cart</button>
+        </div>`;
+    });
+  }
+
+  // ---------- 3. Cart functions ----------
+  function addToCart(id) {
+    const found = cart.find(c => c.id === id);
+    if (found) { found.qty++; }
+    else {
+      const item = menu.find(m => m.id === id);
+      cart.push({ id: item.id, name: item.name, price: item.price, qty: 1 });
+    }
+    showCart();
+  }
+
+  function changeQty(id, change) {
+    const item = cart.find(c => c.id === id);
+    item.qty += change;
+    if (item.qty <= 0) cart = cart.filter(c => c.id !== id);
+    showCart();
+  }
+
+  function clearCart() { cart = []; showCart(); }
+
+  // ---------- 4. Bill calculation ----------
+  function calculateBill() {
+    let subtotal = 0;
+    cart.forEach(c => subtotal += c.price * c.qty);
+    const gst = subtotal * GST_RATE;
+    return { subtotal, gst, total: subtotal + gst };
+  }
+
+  function showCart() {
+    const box = document.getElementById("cartBox");
+    if (cart.length === 0) {
+      box.innerHTML = '<p class="empty">Your cart is empty. Add items from the menu.</p>';
+    } else {
+      let rows = "";
+      cart.forEach(c => {
+        rows += `<tr>
+          <td>${c.name}</td>
+          <td class="num">
+            <button class="small" onclick="changeQty(${c.id}, -1)">−</button>
+            ${c.qty}
+            <button class="small" onclick="changeQty(${c.id}, 1)">+</button>
+          </td>
+          <td class="num">${money(c.price * c.qty)}</td>
+        </tr>`;
+      });
+      box.innerHTML = `<table><thead><tr><th>Item</th><th class="num">Qty</th><th class="num">Amount</th></tr></thead><tbody>${rows}</tbody></table>`;
+    }
+    const bill = calculateBill();
+    document.getElementById("subtotal").textContent = money(bill.subtotal);
+    document.getElementById("gst").textContent = money(bill.gst);
+    document.getElementById("total").textContent = money(bill.total);
+  }
+
+  // ---------- 5. Place order, confirmation and receipt ----------
+  function placeOrder() {
+    const name = document.getElementById("custName").value.trim();
+    const err = document.getElementById("errorMsg");
+    if (cart.length === 0) { err.textContent = "Please add at least one item to the cart."; return; }
+    if (name === "")       { err.textContent = "Please enter your name."; return; }
+    err.textContent = "";
+
+    const bill = calculateBill();
+    const orderNo = "ORD" + Math.floor(1000 + Math.random() * 9000);
+    const now = new Date();
+
+    document.getElementById("receiptMeta").innerHTML =
+      `<b>Order No:</b> ${orderNo}<br><b>Customer:</b> ${name}<br><b>Date:</b> ${now.toLocaleDateString()} &nbsp; <b>Time:</b> ${now.toLocaleTimeString()}`;
+
+    let rows = "";
+    cart.forEach(c => {
+      rows += `<tr><td>${c.name}</td><td class="num">${c.qty}</td><td class="num">${money(c.price)}</td><td class="num">${money(c.price * c.qty)}</td></tr>`;
+    });
+    document.getElementById("receiptRows").innerHTML = rows;
+    document.getElementById("receiptTotals").innerHTML =
+      `<p><span>Subtotal</span><span>${money(bill.subtotal)}</span></p>
+       <p><span>GST (5%)</span><span>${money(bill.gst)}</span></p>
+       <p class="grand"><span>Total Paid</span><span>${money(bill.total)}</span></p>`;
+
+    document.getElementById("mainPage").style.display = "none";
+    document.getElementById("confirmation").style.display = "block";
+  }
+
+  function newOrder() {
+    cart = [];
+    document.getElementById("custName").value = "";
+    document.getElementById("confirmation").style.display = "none";
+    document.getElementById("mainPage").style.display = "flex";
+    showCart();
+  }
+
+  // ---------- Start ----------
+  showMenu();
+  showCart();
+</script>
+</body>
+</html>
